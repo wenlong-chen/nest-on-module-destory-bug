@@ -1,28 +1,25 @@
-To reproduce the bug, run `npm start` and then shut it down with Ctrl + C.
+Under normal circumstances, when the app receives a `SIGTERM` signal, it initiates the `onModuleDestroy` lifecycle method. However, if the app is still processing requests at that time, those requests can end up in an inconsistent state. This repository demonstrates how to ensure all requests are completed before invoking `onModuleDestroy` on the server.
 
-You should see the following log:
+The key is to call `await httpTerminator.terminate();` in the first `onModuleDestroy` method triggered. Ideally, this would be `AppModule.onModuleDestroy`. However, due to a bug in the current version of NestJS, we implement a workaround by creating a helper module. In this example, it’s named `FirstModule`.
 
-```
- % npm start
+Expected Behavior:
 
-> nest-on-module-destroy-bug@0.0.1 start
-> nest start
+1. Send a shutdown signal to the server.
+2. The server waits for all ongoing requests to complete while rejecting new requests.
+3. Once all requests are completed, the shutdown lifecycle begins.
+4. The server exits gracefully.
 
-[Nest] 81294  - 11/08/2024, 1:14:30 PM     LOG [NestFactory] Starting Nest application...
-[Nest] 81294  - 11/08/2024, 1:14:30 PM     LOG [InstanceLoader] AppModule dependencies initialized +4ms
-[Nest] 81294  - 11/08/2024, 1:14:30 PM     LOG [InstanceLoader] BModule dependencies initialized +0ms
-[Nest] 81294  - 11/08/2024, 1:14:30 PM     LOG [InstanceLoader] AModule dependencies initialized +0ms
-[Nest] 81294  - 11/08/2024, 1:14:30 PM     LOG [NestApplication] Nest application successfully started +3ms
-^C[Nest] 81294  - 11/08/2024, 1:14:33 PM   ERROR [NestApplicationContext] Error happened during shutdown
-Error: file closed
-    at fsCall (node:internal/fs/promises:456:17)
-    at FileHandle.write (node:internal/fs/promises:226:12)
-    at BService.log (/nest-on-module-destroy-bug/src/app.ts:9:19)
-    at AService.onModuleDestroy (/nest-on-module-destroy-bug/src/app.ts:36:25)
-    at MapIterator.iteratee (/nest-on-module-destroy-bug/node_modules/@nestjs/core/hooks/on-module-destroy.hook.js:22:43)
-    at MapIterator.next (/nest-on-module-destroy-bug/node_modules/iterare/src/map.ts:9:39)
-    at IteratorWithOperators.next (/nest-on-module-destroy-bug/node_modules/iterare/src/iterate.ts:19:28)
-    at Function.from (<anonymous>)
-    at IteratorWithOperators.toArray (/nest-on-module-destroy-bug/node_modules/iterare/src/iterate.ts:227:22)
-    at callOperator (/nest-on-module-destroy-bug/node_modules/@nestjs/core/hooks/on-module-destroy.hook.js:23:10)
-```
+Running the Example:
+1. Start the server: `npm run start`
+2. Send a request to the server (runs for 30 seconds): `curl localhost:3000`
+3. Stop the server: Press Ctrl + C.
+4. Verify new requests are rejected: `curl localhost:3000`
+5. Check the server output and curl output—it should not display any errors. // wait 30 seconds
+6. Wait until the ongoing request is completed and verify that the server exits gracefully.
+
+Reproducing the Issue:
+1. Comment out the following line in the code: `await httpTerminator.terminate();`
+2. Start the server: `npm run start`
+3. Send a request to the server (runs for 30 seconds): `curl localhost:3000`
+4. Stop the server: Press Ctrl + C.
+5. Check the server output and curl output—it should display an error.

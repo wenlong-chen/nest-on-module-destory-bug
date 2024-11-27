@@ -14,32 +14,23 @@ import { createHttpTerminator } from 'http-terminator';
 
 import { FileHandle, open } from 'fs/promises';
 
-@Injectable()
-export class FirstService implements OnModuleInit, OnModuleDestroy {
+@Module({})
+export class FirstModule {
   private app: INestApplication;
 
   setApp(app: INestApplication) {
     this.app = app;
   }
 
-  async onModuleInit() {
-    console.log('FirstService.onModuleInit');
-  }
-
   async onModuleDestroy() {
+    console.log('FirstService.onModuleDestroy');
     const httpTerminator = createHttpTerminator({
       server: this.app.getHttpServer(),
     });
     await httpTerminator.terminate();
-    console.log('FirstService.onModuleDestroy');
+    console.log('httpTerminator.terminate() completed');
   }
 }
-
-@Module({
-  providers: [FirstService],
-  exports: [FirstService],
-})
-export class FirstModule {}
 
 @Injectable()
 export class LoggerService implements OnModuleInit, OnModuleDestroy {
@@ -58,7 +49,6 @@ export class LoggerService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy() {
     console.log('LoggerService.onModuleDestroy');
     await this.fh.close();
-    await new Promise((resolve) => setTimeout(resolve, 10000));
   }
 }
 
@@ -74,7 +64,7 @@ export class FooService implements OnModuleInit, OnModuleDestroy {
   constructor(@Inject(LoggerService) private loggerService: LoggerService) {}
 
   async longRunningTask() {
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 30; i++) {
       await this.loggerService.log(`Task iteration ${i}\n`);
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
@@ -82,12 +72,10 @@ export class FooService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     console.log('FooService.onModuleInit');
-    await this.loggerService.log('FooService.onModuleInit\n');
   }
 
   async onModuleDestroy() {
     console.log('FooService.onModuleDestroy');
-    // await this.loggerService.log('FooService.onModuleDestroy\n');
   }
 }
 

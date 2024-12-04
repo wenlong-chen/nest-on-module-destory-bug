@@ -7,12 +7,15 @@ import {
   Module,
   OnModuleDestroy,
   OnModuleInit,
+  Sse,
 } from '@nestjs/common';
 import { GraphQLModule, Query, Resolver } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { createHttpTerminator } from 'http-terminator';
 
 import { FileHandle, open } from 'fs/promises';
+import { NestApplication } from '@nestjs/core';
+import { Observable } from 'rxjs';
 
 @Module({})
 export class FirstModule {
@@ -20,10 +23,17 @@ export class FirstModule {
 
   setApp(app: INestApplication) {
     this.app = app;
+    const container = app['container'] as NestApplication['container'];
+    const modulesGenerator = container.getModules().values();
+    for (const module of modulesGenerator) {
+      if (module.name === this.constructor.name) {
+        module.distance = Infinity;
+      }
+    }
   }
 
   async onModuleDestroy() {
-    console.log('FirstService.onModuleDestroy');
+    console.log('FirstModule.onModuleDestroy');
     const httpTerminator = createHttpTerminator({
       server: this.app.getHttpServer(),
     });
@@ -55,7 +65,6 @@ export class LoggerService implements OnModuleInit, OnModuleDestroy {
 @Module({
   providers: [LoggerService],
   exports: [LoggerService],
-  imports: [FirstModule],
 })
 export class LoggerModule {}
 
@@ -87,6 +96,27 @@ export class FooController {
   async index() {
     await this.fooService.longRunningTask();
     return 'Hello World!';
+  }
+
+  @Sse('/sse')
+  sse(): Observable<MessageEvent> {
+    return new Observable((subscriber) => {
+      let i = 0;
+      const interval = setInterval(() => {
+        subscriber.next({ data: `hello ${i++}` } as MessageEvent);
+
+        if (i >= 60) {
+          clearInterval(interval);
+          subscriber.next({ data: 'hello done' } as MessageEvent);
+          subscriber.complete();
+        }
+      }, 1000);
+
+      return () => {
+        console.log('clean up sse');
+        clearInterval(interval);
+      };
+    });
   }
 }
 

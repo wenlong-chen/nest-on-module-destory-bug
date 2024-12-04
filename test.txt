@@ -1,3 +1,0 @@
-Task iteration 0
-Task iteration 1
-Task iteration 2
